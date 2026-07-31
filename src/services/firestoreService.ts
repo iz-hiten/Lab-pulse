@@ -13,6 +13,15 @@ import {
 import { firestore } from '../lib/firebase';
 import { School, User, DailyEntry, ExperimentWindow, SchoolHealthSummary, AlertItem } from '../types';
 
+// Check if Firestore is initialized
+function checkFirestore() {
+  if (!firestore) {
+    console.error('Firestore is not initialized!');
+    throw new Error('Firestore initialization failed. Check Firebase configuration.');
+  }
+  return true;
+}
+
 function getDateOffset(daysOffset: number): string {
   const d = new Date();
   d.setDate(d.getDate() + daysOffset);
@@ -165,8 +174,10 @@ let localMemoryData = generateInitialSeed();
 // Ensure Firestore is seeded on first app run if empty
 export async function seedFirestoreIfEmpty() {
   try {
+    checkFirestore();
     const schoolsSnap = await getDocs(collection(firestore, 'schools'));
     if (schoolsSnap.empty) {
+      console.log('Firestore is empty, seeding data...');
       const seed = generateInitialSeed();
       for (const s of seed.schools) {
         await setDoc(doc(firestore, 'schools', s.id), s);
@@ -181,19 +192,23 @@ export async function seedFirestoreIfEmpty() {
         await setDoc(doc(firestore, 'experiments', exp.id), exp);
       }
       console.log('Firestore initialized with seed data!');
+    } else {
+      console.log('Firestore already has data, skipping seed');
     }
   } catch (err) {
-    console.warn('Firestore seeding check (offline or delayed):', err);
+    console.error('Firestore seeding error:', err);
+    console.error('Will use in-memory fallback data');
   }
 }
 
-// Fire-and-forget background seed check
-seedFirestoreIfEmpty();
+// Don't auto-seed on module load in serverless - do it on first request instead
+// seedFirestoreIfEmpty();
 
 // --- FIRESTORE DATA ACCESSORS ---
 
 export async function fetchSchools(): Promise<School[]> {
   try {
+    checkFirestore();
     const snap = await getDocs(collection(firestore, 'schools'));
     if (!snap.empty) {
       const schools = snap.docs.map(doc => doc.data() as School);
@@ -201,7 +216,8 @@ export async function fetchSchools(): Promise<School[]> {
       return schools;
     }
   } catch (err) {
-    console.warn('Using local fallback for schools:', err);
+    console.error('Firestore fetchSchools error:', err);
+    console.warn('Using local fallback for schools');
   }
   return localMemoryData.schools;
 }
