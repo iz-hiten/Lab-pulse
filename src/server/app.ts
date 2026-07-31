@@ -9,6 +9,8 @@ export function createExpressApp() {
   const app = express();
   app.use(express.json());
 
+  const router = express.Router();
+
   // --- AUTH MIDDLEWARE ---
   const authenticateToken = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const authHeader = req.headers['authorization'];
@@ -24,49 +26,54 @@ export function createExpressApp() {
   };
 
   // --- HEALTH CHECK ---
-  app.get('/api/health', (req, res) => {
+  router.get('/health', (req, res) => {
     res.json({ status: 'ok', service: 'Lab Pulse API', timestamp: new Date().toISOString() });
   });
 
   // --- AUTH ENDPOINTS ---
-  app.post('/api/auth/login', (req, res) => {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password required' });
+  router.post('/auth/login', (req, res) => {
+    try {
+      const { email, password } = req.body || {};
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password required' });
+      }
+
+      const user = db.getUserByEmail(email);
+      if (!user) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+
+      const isValid = bcrypt.compareSync(password, user.passwordHash) || password === 'password123';
+      if (!isValid) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+
+      const token = jwt.sign(
+        { id: user.id, email: user.email, role: user.role, schoolId: user.schoolId },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      const school = user.schoolId ? db.getSchoolById(user.schoolId) : null;
+
+      return res.json({
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          schoolId: user.schoolId,
+          schoolName: school?.name || null,
+        },
+      });
+    } catch (err: any) {
+      console.error('Login Endpoint Error:', err);
+      return res.status(500).json({ error: 'Login failure', details: err?.message || String(err) });
     }
-
-    const user = db.getUserByEmail(email);
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    const isValid = bcrypt.compareSync(password, user.passwordHash) || password === 'password123';
-    if (!isValid) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, schoolId: user.schoolId },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    const school = user.schoolId ? db.getSchoolById(user.schoolId) : null;
-
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        schoolId: user.schoolId,
-        schoolName: school?.name || null,
-      },
-    });
   });
 
-  app.get('/api/auth/me', authenticateToken, (req, res) => {
+  router.get('/auth/me', authenticateToken, (req, res) => {
     const userId = (req as any).user.id;
     const user = db.getUserById(userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -84,13 +91,13 @@ export function createExpressApp() {
   });
 
   // --- SCHOOLS API ---
-  app.get('/api/schools', (req, res) => {
+  router.get('/schools', (req, res) => {
     const summaries = db.getAllHealthSummaries();
     const alerts = db.getAllActiveAlerts();
     res.json({ summaries, alerts });
   });
 
-  app.post('/api/schools', authenticateToken, (req, res) => {
+  router.post('/schools', authenticateToken, (req, res) => {
     const userRole = (req as any).user.role;
     if (userRole !== 'admin') {
       return res.status(403).json({ error: 'Admin access required' });
@@ -111,7 +118,7 @@ export function createExpressApp() {
     res.status(201).json(newSchool);
   });
 
-  app.get('/api/schools/:id', (req, res) => {
+  router.get('/schools/:id', (req, res) => {
     const schoolId = req.params.id;
     const summary = db.calculateSchoolHealth(schoolId);
     if (!summary) {
@@ -129,7 +136,7 @@ export function createExpressApp() {
   });
 
   // --- ENTRIES API ---
-  app.get('/api/entries', (req, res) => {
+  router.get('/entries', (req, res) => {
     const { schoolId, limit } = req.query;
     const entries = db.getEntries(
       schoolId ? String(schoolId) : undefined,
@@ -138,12 +145,12 @@ export function createExpressApp() {
     res.json(entries);
   });
 
-  app.get('/api/entries/recent/:schoolId', (req, res) => {
+  router.get('/entries/recent/:schoolId', (req, res) => {
     const entries = db.getEntries(req.params.schoolId, 3);
     res.json(entries);
   });
 
-  app.post('/api/entries', authenticateToken, (req, res) => {
+  router.post('/entries', authenticateToken, (req, res) => {
     const {
       schoolId,
       date,
@@ -181,7 +188,7 @@ export function createExpressApp() {
   });
 
   // --- EXPERIMENT MODE API ---
-  app.get('/api/experiments/:schoolId', (req, res) => {
+  router.get('/experiments/:schoolId', (req, res) => {
     const { schoolId } = req.params;
     const { experimentId } = req.query;
 
@@ -197,7 +204,7 @@ export function createExpressApp() {
     res.json({ experiments, comparison });
   });
 
-  app.post('/api/experiments', authenticateToken, (req, res) => {
+  router.post('/experiments', authenticateToken, (req, res) => {
     const userRole = (req as any).user.role;
     if (userRole !== 'admin') {
       return res.status(403).json({ error: 'Admin access required' });
@@ -220,7 +227,7 @@ export function createExpressApp() {
   });
 
   // --- ADMIN USER MANAGEMENT API ---
-  app.get('/api/users', authenticateToken, (req, res) => {
+  router.get('/users', authenticateToken, (req, res) => {
     const userRole = (req as any).user.role;
     if (userRole !== 'admin') {
       return res.status(403).json({ error: 'Admin access required' });
@@ -237,7 +244,7 @@ export function createExpressApp() {
     res.json(users);
   });
 
-  app.post('/api/users', authenticateToken, (req, res) => {
+  router.post('/users', authenticateToken, (req, res) => {
     const userRole = (req as any).user.role;
     if (userRole !== 'admin') {
       return res.status(403).json({ error: 'Admin access required' });
@@ -265,7 +272,7 @@ export function createExpressApp() {
     res.status(201).json(userWithoutPass);
   });
 
-  app.post('/api/users/reset-password', authenticateToken, (req, res) => {
+  router.post('/users/reset-password', authenticateToken, (req, res) => {
     const userRole = (req as any).user.role;
     if (userRole !== 'admin') {
       return res.status(403).json({ error: 'Admin access required' });
@@ -284,7 +291,7 @@ export function createExpressApp() {
   });
 
   // --- REPORT EXPORT API ---
-  app.get('/api/reports/weekly', (req, res) => {
+  router.get('/reports/weekly', (req, res) => {
     const summaries = db.getAllHealthSummaries();
     const alerts = db.getAllActiveAlerts();
     const todayStr = new Date().toISOString().split('T')[0];
@@ -347,9 +354,19 @@ export function createExpressApp() {
   });
 
   // --- SEED RESET API ---
-  app.post('/api/seed/reset', (req, res) => {
+  router.post('/seed/reset', (req, res) => {
     db.resetSeed();
     res.json({ message: 'Database reset to initial seed data successfully' });
+  });
+
+  // Mount router under both '/api' and '/' for Vercel serverless prefix compatibility
+  app.use('/api', router);
+  app.use('/', router);
+
+  // Global error handling middleware
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error('Global Express Error:', err);
+    res.status(500).json({ error: 'Server Error', message: err?.message || String(err) });
   });
 
   return app;
