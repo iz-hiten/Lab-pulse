@@ -75,8 +75,8 @@ export interface SchoolHealthSummary {
   alerts: AlertItem[];
 }
 
-const DATA_DIR = path.join(os.tmpdir(), 'labpulse_data');
-const DB_FILE = path.join(DATA_DIR, 'db.json');
+// In-memory storage for serverless environment
+let memoryDB: SchemaDB | null = null;
 
 interface SchemaDB {
   schools: SchoolData[];
@@ -249,27 +249,52 @@ class LocalDB {
   }
 
   private load(): SchemaDB {
+    // Use in-memory storage for serverless compatibility
+    if (memoryDB) {
+      return memoryDB;
+    }
+    
+    // Try to load from file system (for local dev)
     try {
-      if (fs.existsSync(DB_FILE)) {
-        const raw = fs.readFileSync(DB_FILE, 'utf-8');
-        return JSON.parse(raw);
+      if (typeof window === 'undefined' && fs.existsSync) {
+        const DATA_DIR = path.join(os.tmpdir(), 'labpulse_data');
+        const DB_FILE = path.join(DATA_DIR, 'db.json');
+        
+        if (fs.existsSync(DB_FILE)) {
+          const raw = fs.readFileSync(DB_FILE, 'utf-8');
+          const parsed = JSON.parse(raw);
+          memoryDB = parsed;
+          return parsed;
+        }
       }
     } catch (err) {
       console.warn('DB file load notice (using memory seed):', err);
     }
+    
     const initial = getInitialSeedData();
+    memoryDB = initial;
     this.save(initial);
     return initial;
   }
 
   private save(dataToSave?: SchemaDB): void {
+    const dataToStore = dataToSave || this.data;
+    memoryDB = dataToStore;
+    
+    // Try to persist to file system (for local dev only)
     try {
-      if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
+      if (typeof window === 'undefined' && fs.existsSync) {
+        const DATA_DIR = path.join(os.tmpdir(), 'labpulse_data');
+        const DB_FILE = path.join(DATA_DIR, 'db.json');
+        
+        if (!fs.existsSync(DATA_DIR)) {
+          fs.mkdirSync(DATA_DIR, { recursive: true });
+        }
+        fs.writeFileSync(DB_FILE, JSON.stringify(dataToStore, null, 2));
       }
-      fs.writeFileSync(DB_FILE, JSON.stringify(dataToSave || this.data, null, 2));
     } catch (err) {
       // In read-only or serverless environments, ignore file write errors
+      // Data persists in memory for the duration of the serverless function
     }
   }
 
