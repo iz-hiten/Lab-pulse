@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { LogIn, Key, Mail, ShieldAlert, CheckCircle } from 'lucide-react';
-import { loginUserDirect } from '../services/firestoreService';
+import { api } from '../lib/api';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -27,29 +27,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setErrorMsg('');
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        onLoginSuccess(data.token, data.user);
-        onClose();
-        setIsLoading(false);
-        return;
-      }
-    } catch (err) {
-      console.warn('API login failed, attempting Firestore direct auth', err);
-    }
-
-    try {
-      const direct = await loginUserDirect(email);
-      onLoginSuccess(direct.token, direct.user);
+      const data = await api.login(email, password);
+      onLoginSuccess(data.token, data.user);
       onClose();
-    } catch (fsErr) {
-      setErrorMsg('Invalid email or password');
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Invalid email or password');
     } finally {
       setIsLoading(false);
     }
@@ -60,24 +42,15 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setPassword('password123');
     setIsLoading(true);
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: demoEmail, password: 'password123' }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        onLoginSuccess(data.token, data.user);
-        onClose();
-        setIsLoading(false);
-        return;
-      }
-    } catch (err) {
-      console.warn('API demo login failed, fallback to Firestore', err);
+      const data = await api.login(demoEmail, 'password123');
+      onLoginSuccess(data.token, data.user);
+      onClose();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Demo login failed');
+    } finally {
+      setIsLoading(false);
     }
-
-    try {
-      const direct = await loginUserDirect(demoEmail);
+  };
       onLoginSuccess(direct.token, direct.user);
       onClose();
     } catch (fsErr) {

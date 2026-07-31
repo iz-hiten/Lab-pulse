@@ -8,11 +8,7 @@ import { UserManagementView } from './components/UserManagementView';
 import { WeeklyReportView } from './components/WeeklyReportView';
 import { LoginModal } from './components/LoginModal';
 import { OnboardingTour } from './components/OnboardingTour';
-import {
-  loginUserDirect,
-  getDashboardSummaryDirect,
-  getSchoolDrilldownDirect
-} from './services/firestoreService';
+import { api } from './lib/api';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -35,87 +31,38 @@ export default function App() {
   // Auto-login default user on first load
   const loginDefaultUser = async (email: string = 'oakridge.lab@school.edu') => {
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password: 'password123' }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setAuthToken(data.token);
-        setCurrentUser(data.user);
-        localStorage.setItem('labpulse_token', data.token);
-        return;
-      }
+      const data = await api.login(email, 'password123');
+      setAuthToken(data.token);
+      setCurrentUser(data.user);
+      localStorage.setItem('labpulse_token', data.token);
     } catch (err) {
-      console.warn('API login unavailable, connecting via Firestore database:', err);
-    }
-
-    // Direct Firestore fallback
-    try {
-      const directData = await loginUserDirect(email);
-      setAuthToken(directData.token);
-      setCurrentUser(directData.user);
-      localStorage.setItem('labpulse_token', directData.token);
-    } catch (fsErr) {
-      console.error('Firestore login failed:', fsErr);
+      console.error('Login failed:', err);
     }
   };
 
   // Fetch schools and health summaries
   const fetchDashboardData = async () => {
     try {
-      const res = await fetch('/api/schools');
-      if (res.ok) {
-        const data = await res.json();
-        setHealthSummaries(data.summaries || []);
-        setAlerts(data.alerts || []);
-        const schoolsList = (data.summaries || []).map((s: SchoolHealthSummary) => s.school);
-        setSchools(schoolsList);
-
-        if (schoolsList.length > 0 && !selectedSchoolSummary) {
-          fetchSchoolDrilldown(schoolsList[0].id);
-        }
-        return;
-      }
-    } catch (err) {
-      console.warn('API dashboard endpoint unavailable, fetching directly from Firestore:', err);
-    }
-
-    // Direct Firestore fallback
-    try {
-      const data = await getDashboardSummaryDirect();
-      setHealthSummaries(data.summaries);
-      setAlerts(data.alerts);
-      const schoolsList = data.summaries.map(s => s.school);
+      const data = await api.getSchools();
+      setHealthSummaries(data.summaries || []);
+      setAlerts(data.alerts || []);
+      const schoolsList = (data.summaries || []).map((s: SchoolHealthSummary) => s.school);
       setSchools(schoolsList);
 
       if (schoolsList.length > 0 && !selectedSchoolSummary) {
         fetchSchoolDrilldown(schoolsList[0].id);
       }
-    } catch (fsErr) {
-      console.error('Firestore fetch failed:', fsErr);
+    } catch (err) {
+      console.error('Failed to fetch dashboard data:', err);
     }
   };
 
   const fetchSchoolDrilldown = async (schoolId: string) => {
     try {
-      const res = await fetch(`/api/schools/${schoolId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setSelectedSchoolSummary(data);
-        return;
-      }
-    } catch (err) {
-      console.warn('API drilldown unavailable, fetching directly from Firestore:', err);
-    }
-
-    // Direct Firestore fallback
-    try {
-      const data = await getSchoolDrilldownDirect(schoolId);
+      const data = await api.getSchoolDetail(schoolId);
       setSelectedSchoolSummary(data);
-    } catch (fsErr) {
-      console.error('Firestore drilldown failed:', fsErr);
+    } catch (err) {
+      console.error('Failed to fetch school details:', err);
     }
   };
 
@@ -156,13 +103,9 @@ export default function App() {
     if (!window.confirm('Reset Lab Pulse database back to initial seed data?')) return;
     setIsResetting(true);
     try {
-      const res = await fetch('/api/seed/reset', { method: 'POST' });
-      if (res.ok) {
-        await fetchDashboardData();
-        if (currentUser?.email) {
-          loginDefaultUser(currentUser.email);
-        }
-      }
+      // In mock mode, just reload the page to reset data
+      await new Promise(resolve => setTimeout(resolve, 500));
+      window.location.reload();
     } catch (err) {
       console.error('Failed to reset database', err);
     } finally {
