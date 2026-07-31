@@ -1,0 +1,6 @@
+{
+  "name": "Lab Pulse",
+  "description": "Field monitoring dashboard for digital education programs across schools with daily mobile reporting and live analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

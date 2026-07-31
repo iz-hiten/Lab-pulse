@@ -1,0 +1,65 @@
+// Prisma schema for Lab Pulse - Field Monitoring System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model School {
+  id                String             @id @default(uuid())
+  name              String
+  commuteTime       Int                // commute time in minutes from district HQ
+  activeLabDays     String             // JSON string array e.g. ["Mon","Tue","Wed","Thu","Fri"]
+  hasDedicatedStaff Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  
+  users             User[]
+  dailyEntries      DailyEntry[]
+  experimentWindows ExperimentWindow[]
+}
+
+model User {
+  id           String       @id @default(uuid())
+  name         String
+  email        String       @unique
+  passwordHash String
+  role         String       // "entry" | "admin"
+  schoolId     String?
+  school       School?      @relation(fields: [schoolId], references: [id])
+  createdAt    DateTime     @default(now())
+  
+  dailyEntries DailyEntry[]
+}
+
+model DailyEntry {
+  id                  String   @id @default(uuid())
+  schoolId            String
+  school              School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  date                String   // YYYY-MM-DD format
+  studentsPresent     Int
+  sessionRan          Boolean  @default(true)
+  sessionDurationMins Int?
+  engagementLevel     Int      // 1 to 5
+  contentCompleted    String?
+  technicalIssues     String?
+  notes               String?
+  isExperimentDay     Boolean  @default(false)
+  submittedById       String
+  submittedBy         User     @relation(fields: [submittedById], references: [id])
+  createdAt           DateTime @default(now())
+}
+
+model ExperimentWindow {
+  id        String   @id @default(uuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  title     String
+  startDate String   // YYYY-MM-DD
+  endDate   String   // YYYY-MM-DD
+  notes     String?
+  createdAt DateTime @default(now())
+}
