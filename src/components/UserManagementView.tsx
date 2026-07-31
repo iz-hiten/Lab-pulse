@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { School, User } from '../types';
 import { Building2, UserPlus, KeyRound, Shield, Check, Plus, Lock } from 'lucide-react';
+import { fetchUsers as fetchUsersFirestore, createSchoolInFirestore } from '../services/firestoreService';
 
 interface UserManagementViewProps {
   schools: School[];
@@ -48,9 +49,18 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       if (res.ok) {
         const data = await res.json();
         setUsersList(data);
+        setIsLoading(false);
+        return;
       }
     } catch (err) {
-      console.error('Failed to fetch users', err);
+      console.warn('API users fetch failed, fallback to Firestore:', err);
+    }
+
+    try {
+      const usersData = await fetchUsersFirestore();
+      setUsersList(usersData);
+    } catch (fsErr) {
+      console.error('Firestore users fetch failed:', fsErr);
     } finally {
       setIsLoading(false);
     }
@@ -85,11 +95,24 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         setShowAddSchoolModal(false);
         setSchoolName('');
         onRefreshSchools();
-      } else {
-        alert('Failed to add school.');
+        return;
       }
     } catch (err) {
-      console.error('Error adding school', err);
+      console.warn('API add school failed, saving to Firestore:', err);
+    }
+
+    try {
+      await createSchoolInFirestore({
+        name: schoolName,
+        commuteTime,
+        activeLabDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+        hasDedicatedStaff,
+      });
+      setShowAddSchoolModal(false);
+      setSchoolName('');
+      onRefreshSchools();
+    } catch (fsErr) {
+      console.error('Firestore add school failed:', fsErr);
     }
   };
 

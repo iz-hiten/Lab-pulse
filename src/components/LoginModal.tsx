@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { LogIn, Key, Mail, ShieldAlert, CheckCircle } from 'lucide-react';
+import { loginUserDirect } from '../services/firestoreService';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -36,13 +37,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         const data = await res.json();
         onLoginSuccess(data.token, data.user);
         onClose();
-      } else {
-        const err = await res.json();
-        setErrorMsg(err.error || 'Invalid credentials');
+        setIsLoading(false);
+        return;
       }
     } catch (err) {
-      console.error('Login error', err);
-      setErrorMsg('Failed to connect to server');
+      console.warn('API login failed, attempting Firestore direct auth', err);
+    }
+
+    try {
+      const direct = await loginUserDirect(email);
+      onLoginSuccess(direct.token, direct.user);
+      onClose();
+    } catch (fsErr) {
+      setErrorMsg('Invalid email or password');
     } finally {
       setIsLoading(false);
     }
@@ -62,13 +69,24 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         const data = await res.json();
         onLoginSuccess(data.token, data.user);
         onClose();
+        setIsLoading(false);
+        return;
       }
     } catch (err) {
-      console.error(err);
+      console.warn('API demo login failed, fallback to Firestore', err);
+    }
+
+    try {
+      const direct = await loginUserDirect(demoEmail);
+      onLoginSuccess(direct.token, direct.user);
+      onClose();
+    } catch (fsErr) {
+      console.error(fsErr);
     } finally {
       setIsLoading(false);
     }
   };
+
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">

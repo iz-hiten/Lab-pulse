@@ -1,0 +1,67 @@
+{
+  "entities": {
+    "schools": {
+      "title": "Schools",
+      "description": "Partner schools monitored by Lab Pulse",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "commuteTime": { "type": "number" },
+        "activeLabDays": { "type": "array", "items": { "type": "string" } },
+        "hasDedicatedStaff": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "commuteTime"]
+    },
+    "entries": {
+      "title": "Field Entries",
+      "description": "Daily teacher log entries",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "date": { "type": "string" },
+        "studentsPresent": { "type": "number" },
+        "sessionRan": { "type": "boolean" },
+        "sessionDurationMins": { "type": "number" },
+        "engagementLevel": { "type": "number" },
+        "contentCompleted": { "type": "string" },
+        "technicalIssues": { "type": "string" },
+        "notes": { "type": "string" },
+        "isExperimentDay": { "type": "boolean" },
+        "submittedById": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "schoolId", "date"]
+    },
+    "users": {
+      "title": "Users",
+      "description": "Registered app users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "passwordHash": { "type": "string" },
+        "role": { "type": "string" },
+        "schoolId": { "type": "string" }
+      },
+      "required": ["id", "email", "name", "role"]
+    },
+    "experiments": {
+      "title": "Product Experiments",
+      "description": "A/B intervention test windows",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "title": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "schoolId", "title", "startDate", "endDate"]
+    }
+  }
+}

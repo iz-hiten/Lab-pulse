@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { School, ExperimentWindow, ExperimentComparison } from '../types';
 import { FlaskConical, Plus, Calendar, ArrowRight, TrendingUp, CheckCircle, Award } from 'lucide-react';
+import { fetchExperiments, createExperimentInFirestore } from '../services/firestoreService';
 
 interface ExperimentViewProps {
   schools: School[];
@@ -41,9 +42,20 @@ export const ExperimentView: React.FC<ExperimentViewProps> = ({
         if (data.experiments.length > 0 && !expId) {
           setSelectedExpId(data.experiments[0].id);
         }
+        return;
       }
     } catch (err) {
-      console.error('Failed to fetch experiment data', err);
+      console.warn('API experiments fetch failed, fallback to Firestore:', err);
+    }
+
+    try {
+      const exps = await fetchExperiments(schoolId);
+      setExperiments(exps);
+      if (exps.length > 0 && !expId) {
+        setSelectedExpId(exps[0].id);
+      }
+    } catch (fsErr) {
+      console.error('Firestore experiments fetch failed:', fsErr);
     }
   };
 
@@ -89,11 +101,29 @@ export const ExperimentView: React.FC<ExperimentViewProps> = ({
         setNewEndDate('');
         setNewNotes('');
         fetchExperimentData(selectedSchoolId);
-      } else {
-        alert('Failed to create experiment window.');
+        setIsSubmitting(false);
+        return;
       }
     } catch (err) {
-      console.error('Error creating experiment', err);
+      console.warn('API create experiment failed, persisting to Firestore:', err);
+    }
+
+    try {
+      await createExperimentInFirestore({
+        schoolId: selectedSchoolId,
+        title: newTitle,
+        startDate: newStartDate,
+        endDate: newEndDate,
+        notes: newNotes || null,
+      });
+      setShowAddModal(false);
+      setNewTitle('');
+      setNewStartDate('');
+      setNewEndDate('');
+      setNewNotes('');
+      fetchExperimentData(selectedSchoolId);
+    } catch (fsErr) {
+      console.error('Firestore create experiment failed:', fsErr);
     } finally {
       setIsSubmitting(false);
     }

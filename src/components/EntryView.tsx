@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, School, DailyEntry } from '../types';
+import { createEntryInFirestore, fetchEntries } from '../services/firestoreService';
 import {
   CheckCircle2,
   XCircle,
@@ -138,12 +139,25 @@ export const EntryView: React.FC<EntryViewProps> = ({
         onEntrySubmitted();
         fetchRecentSubmissions(selectedSchoolId);
         setTimeout(() => setSubmitSuccess(false), 4000);
-      } else {
-        alert('Failed to submit entry. Please verify inputs and try again.');
+        setIsSubmitting(false);
+        return;
       }
     } catch (err) {
-      console.error('Error submitting entry', err);
-      alert('Error submitting report.');
+      console.warn('API submission failed, persisting directly to Firestore database:', err);
+    }
+
+    try {
+      await createEntryInFirestore({
+        ...payload,
+        submittedById: currentUser?.id || 'unknown',
+      });
+      setSubmitSuccess(true);
+      onEntrySubmitted();
+      fetchRecentSubmissions(selectedSchoolId);
+      setTimeout(() => setSubmitSuccess(false), 4000);
+    } catch (fsErr) {
+      console.error('Firestore save failed:', fsErr);
+      alert('Error saving report to Firestore database.');
     } finally {
       setIsSubmitting(false);
     }
