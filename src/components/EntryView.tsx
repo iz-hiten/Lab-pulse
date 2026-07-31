@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, School, DailyEntry } from '../types';
-import { createEntryInFirestore, fetchEntries } from '../services/firestoreService';
+import { api } from '../lib/api';
 import {
   CheckCircle2,
   XCircle,
@@ -64,11 +64,8 @@ export const EntryView: React.FC<EntryViewProps> = ({
   const fetchRecentSubmissions = async (schoolId: string) => {
     if (!schoolId) return;
     try {
-      const res = await fetch(`/api/entries/recent/${schoolId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setRecentEntries(data);
-      }
+      const data = await api.getEntries(schoolId, 3);
+      setRecentEntries(data);
     } catch (err) {
       console.error('Failed to fetch recent submissions', err);
     }
@@ -124,40 +121,16 @@ export const EntryView: React.FC<EntryViewProps> = ({
       isExperimentDay: sessionRan && isExperimentDay,
     };
 
+    setIsSubmitting(true);
     try {
-      const res = await fetch('/api/entries', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        setSubmitSuccess(true);
-        onEntrySubmitted();
-        fetchRecentSubmissions(selectedSchoolId);
-        setTimeout(() => setSubmitSuccess(false), 4000);
-        setIsSubmitting(false);
-        return;
-      }
-    } catch (err) {
-      console.warn('API submission failed, persisting directly to Firestore database:', err);
-    }
-
-    try {
-      await createEntryInFirestore({
-        ...payload,
-        submittedById: currentUser?.id || 'unknown',
-      });
+      await api.createEntry(authToken || '', payload);
       setSubmitSuccess(true);
       onEntrySubmitted();
       fetchRecentSubmissions(selectedSchoolId);
       setTimeout(() => setSubmitSuccess(false), 4000);
-    } catch (fsErr) {
-      console.error('Firestore save failed:', fsErr);
-      alert('Error saving report to Firestore database.');
+    } catch (err) {
+      console.error('Entry submission failed:', err);
+      alert('Error saving report. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

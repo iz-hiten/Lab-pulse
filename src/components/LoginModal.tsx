@@ -51,15 +51,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       setIsLoading(false);
     }
   };
-      onLoginSuccess(direct.token, direct.user);
-      onClose();
-    } catch (fsErr) {
-      console.error(fsErr);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
