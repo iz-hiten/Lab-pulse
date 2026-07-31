@@ -250,15 +250,12 @@ class LocalDB {
 
   private load(): SchemaDB {
     try {
-      if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-      }
       if (fs.existsSync(DB_FILE)) {
         const raw = fs.readFileSync(DB_FILE, 'utf-8');
         return JSON.parse(raw);
       }
     } catch (err) {
-      console.error('Failed to load DB file, using initial seed', err);
+      console.warn('DB file load notice (using memory seed):', err);
     }
     const initial = getInitialSeedData();
     this.save(initial);
@@ -272,7 +269,7 @@ class LocalDB {
       }
       fs.writeFileSync(DB_FILE, JSON.stringify(dataToSave || this.data, null, 2));
     } catch (err) {
-      console.error('Failed to save DB file', err);
+      // In read-only or serverless environments, ignore file write errors
     }
   }
 

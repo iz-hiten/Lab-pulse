@@ -363,6 +363,67 @@ export async function getSchoolDrilldownDirect(schoolId: string) {
   };
 }
 
+export async function generateWeeklyReportDirect(): Promise<{ reportText: string }> {
+  const schools = await fetchSchools();
+  const entries = await fetchEntries();
+  const summaries = schools.map(s => calculateSchoolHealthFromEntries(s, entries));
+  const alerts = detectAlertsFromEntries(schools, entries);
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  let reportText = `====================================================\n`;
+  reportText += `📊 LAB PULSE WEEKLY PROGRAM REPORT - ${todayStr}\n`;
+  reportText += `====================================================\n\n`;
+
+  reportText += `1. EXECUTIVE OVERVIEW\n`;
+  reportText += `----------------------------------------------------\n`;
+  reportText += `Total Partner Schools: ${summaries.length}\n`;
+  reportText += `Healthy (Green ≥80): ${summaries.filter((s) => s.status === 'green').length}\n`;
+  reportText += `Needs Attention (Amber 60-79): ${summaries.filter((s) => s.status === 'amber').length}\n`;
+  reportText += `Critical Risk (Red <60): ${summaries.filter((s) => s.status === 'red').length}\n`;
+  reportText += `Active System Alerts: ${alerts.length}\n\n`;
+
+  if (alerts.length > 0) {
+    reportText += `2. CRITICAL ALERTS & ATTENTION REQUIRED\n`;
+    reportText += `----------------------------------------------------\n`;
+    alerts.forEach((alert, i) => {
+      reportText += `[${i + 1}] ${alert.schoolName.toUpperCase()}\n`;
+      reportText += `    Type: ${alert.type.replace('_', ' ').toUpperCase()}\n`;
+      reportText += `    Detail: ${alert.message}\n\n`;
+    });
+  }
+
+  reportText += `3. PER-SCHOOL HEALTH SCORE BREAKDOWN (7-DAY TRAILING)\n`;
+  reportText += `----------------------------------------------------\n`;
+  summaries.forEach((s) => {
+    const icon = s.status === 'green' ? '🟢' : s.status === 'amber' ? '🟡' : '🔴';
+    const arrow = s.trend === 'up' ? '▲ (+)' : s.trend === 'down' ? '▼ (-)' : '▶ (=)';
+    reportText += `${icon} ${s.school.name}\n`;
+    reportText += `   Health Score: ${s.healthScore}/100 [Trend: ${arrow} ${Math.abs(s.trendDelta)} pts]\n`;
+    reportText += `   Session Uptime: ${Math.round(s.trailingStats.sessionUptime)}%\n`;
+    reportText += `   Avg Attendance: ${Math.round(s.trailingStats.avgStudentsPresent)} students/session\n`;
+    reportText += `   Avg Engagement: ${s.trailingStats.avgEngagement.toFixed(1)} / 5.0\n`;
+    reportText += `   Commute Time: ${s.school.commuteTime} mins from HQ\n\n`;
+  });
+
+  reportText += `4. RECENT TECHNICAL BLOCKERS\n`;
+  reportText += `----------------------------------------------------\n`;
+  const recentTechEntries = entries.filter((e) => e.technicalIssues).slice(0, 5);
+
+  if (recentTechEntries.length === 0) {
+    reportText += `No technical issues reported in recent submissions.\n`;
+  } else {
+    recentTechEntries.forEach((e) => {
+      const s = schools.find(sch => sch.id === e.schoolId);
+      reportText += `• ${e.date} [${s?.name || 'School'}]: ${e.technicalIssues}\n`;
+    });
+  }
+
+  reportText += `\n====================================================\n`;
+  reportText += `Generated automatically from Firestore Database.\n`;
+
+  return { reportText };
+}
+
 
 // Calculate 100-Point Composite Health Summaries
 export function calculateSchoolHealthFromEntries(school: School, allEntries: DailyEntry[]): SchoolHealthSummary {

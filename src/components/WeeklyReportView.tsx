@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Copy, Check, FileText, Download, Sparkles, Send, ShieldCheck } from 'lucide-react';
+import { generateWeeklyReportDirect } from '../services/firestoreService';
 
 export const WeeklyReportView: React.FC = () => {
   const [reportText, setReportText] = useState<string>('');
@@ -13,9 +14,18 @@ export const WeeklyReportView: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         setReportText(data.reportText);
+        setIsLoading(false);
+        return;
       }
     } catch (err) {
-      console.error('Failed to fetch weekly report', err);
+      console.warn('API report fetch failed, fallback to Firestore:', err);
+    }
+
+    try {
+      const data = await generateWeeklyReportDirect();
+      setReportText(data.reportText);
+    } catch (fsErr) {
+      console.error('Firestore report generation failed:', fsErr);
     } finally {
       setIsLoading(false);
     }
