@@ -8,7 +8,7 @@ export interface School {
 }
 
 export interface User {
-  id: string;
+  id: string; 
   name: string;
   email: string;
   role: 'entry' | 'admin';
