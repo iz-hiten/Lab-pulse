@@ -2,91 +2,102 @@
 
 ## Issues Fixed
 
-The original deployment was failing with "500 func invocation failed" error due to:
+The deployment was failing with "500 func invocation failed" error due to:
 
-1. **File System Operations**: The database (`src/server/db.ts`) was using Node.js `fs` module to persist data to disk, which doesn't work reliably in Vercel's serverless environment.
-2. **Missing Serverless Configuration**: The API handler needed proper memory and timeout settings.
-3. **Cold Start Issues**: Express app initialization timing in serverless functions.
+1. **Wrong Database Import**: The API (`src/server/app.ts`) was importing the old in-memory `db.ts` module instead of using Firebase Firestore services
+2. **Firebase Client-Side SDK in Serverless**: Firebase client SDK needs proper initialization in serverless environment
+3. **Missing Environment Configuration**: Vercel needs specific function settings for proper execution
 
 ## Changes Made
 
-### 1. Database Storage (src/server/db.ts)
-- Changed from file-based storage to in-memory storage
-- Data persists during the serverless function's lifecycle
-- **Note**: Data will reset when the function cold-starts. For production, consider:
-  - Using Vercel Postgres
-  - Using Firebase Firestore
-  - Using any external database service
+### 1. Updated Server App to Use Firebase (`src/server/app.ts`)
+- ✅ Changed from `import { db } from './db'` to `import * as firestoreService from '../services/firestoreService'`
+- ✅ Converted all database operations to async Firebase calls
+- ✅ Added proper error handling for all endpoints
+- ✅ All routes now use Firebase Firestore through `firestoreService`
 
-### 2. Vercel Configuration (vercel.json)
-- Added `functions` configuration with increased memory (1024MB) and timeout (10s)
-- Configured proper API routing
+### 2. Firebase Configuration
+Your Firebase setup is already configured:
+- Project ID: `xanthic-basis-9cf5x`
+- Firestore Database: `ai-studio-labpulse-7445edf1-4a8c-44a2-a1ee-efd3531ed616`
+- Config file: `firebase-applet-config.json`
 
-### 3. API Handler (api/index.ts)
-- Improved error handling and logging
-- Lazy initialization of Express app
-- Better error messages for debugging
+### 3. Vercel Configuration (`vercel.json`)
+- Added `functions` configuration with 1024MB memory
+- Set 10-second timeout for API routes
+- Proper API routing configured
+
+### 4. Serverless Handler (`api/index.ts`)
+- Improved error logging with stack traces
+- Better initialization handling
+- Proper 500 error responses
 
 ## Environment Variables Required
 
-Set these in Vercel Dashboard → Settings → Environment Variables:
+Firebase configuration is already in `firebase-applet-config.json`, but you still need:
+
+**Set these in Vercel Dashboard → Settings → Environment Variables:**
 
 ```bash
 NEXTAUTH_SECRET="your-super-secret-key-minimum-32-characters-long"
 NEXTAUTH_URL="https://your-app.vercel.app"
-GEMINI_API_KEY="your-gemini-api-key" # Optional, if using AI features
+NODE_ENV="production"
+```
+
+**Optional (if using Gemini AI features):**
+```bash
+GEMINI_API_KEY="your-gemini-api-key"
 APP_URL="https://your-app.vercel.app"
 ```
 
 ## Deployment Steps
 
-1. **Push your changes to GitHub**:
+1. **Commit and Push Changes**:
    ```bash
    git add .
-   git commit -m "Fix serverless deployment issues"
+   git commit -m "Fix: Use Firebase Firestore instead of in-memory DB"
    git push
    ```
 
-2. **In Vercel Dashboard**:
-   - Go to your project
+2. **Set Environment Variables in Vercel**:
+   - Go to Vercel Dashboard
+   - Select your project
    - Settings → Environment Variables
-   - Add all required environment variables
-   - Redeploy from Deployments tab
+   - Add all required variables above
+   - Apply to: Production, Preview, and Development
 
-3. **Test the API**:
+3. **Deploy**:
+   - Vercel will auto-deploy on push, or
+   - Manually trigger from Deployments tab
+
+4. **Test the API**:
    ```bash
+   # Health check
    curl https://your-app.vercel.app/api/health
+   
+   # Get schools data
+   curl https://your-app.vercel.app/api/schools
    ```
 
-## Important Notes
+5. **Check Logs if Issues Persist**:
+   - Vercel Dashboard → Your Project → Deployments
+   - Click on latest deployment
+   - Functions tab → `/api/index` → View Logs
 
-### Data Persistence
-⚠️ **Current Setup**: Data is stored in-memory and will reset on cold starts (every ~5-15 minutes of inactivity).
+## Data Persistence
 
-**For Production**, migrate to a real database:
+✅ **Using Firebase Firestore**: All data is now persisted in your Firebase project
+- Project: `xanthic-basis-9cf5x`
+- Database: `ai-studio-labpulse-7445edf1-4a8c-44a2-a1ee-efd3531ed616`
+- Data survives deployments and function cold starts
+- Includes in-memory fallback for offline development
 
-#### Option A: Vercel Postgres
-```bash
-# Install Prisma
-npm install @prisma/client
-npm install -D prisma
-
-# Initialize Prisma
-npx prisma init
-
-# Update schema.prisma with your models
-# Run migrations
-npx prisma migrate dev
-```
-
-#### Option B: Firebase Firestore
-You already have `src/services/firestoreService.ts` - consider using it for backend storage too.
-
-#### Option C: External Database
-- Supabase
-- PlanetScale
-- MongoDB Atlas
-- Any PostgreSQL/MySQL provider
+### Seeding Firebase
+The Firebase service (`src/services/firestoreService.ts`) automatically seeds your Firestore database with initial data on first run if it's empty. This includes:
+- 3 sample schools
+- 4 users (1 admin, 3 entry users)
+- 14 days of sample entries
+- 1 experiment window
 
 ### API Routes
 All API endpoints are available at:
